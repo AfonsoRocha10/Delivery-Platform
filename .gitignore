@@ -22,3 +22,41 @@
 # virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
 hs_err_pid*
 replay_pid*
+
+# --- Build output (Maven) ---
+target/
+
+# --- IDE / OS files ---
+.idea/
+*.iml
+.vscode/
+.DS_Store
+Thumbs.db
+
+# --- Secrets and credentials (never commit) ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+id_rsa*
+id_ed25519*
+
+# --- Terraform (Phase 5) ---
+# State can contain secrets and must never be in Git.
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+crash.log
+crash.*.log
+# Note: .terraform.lock.hcl is intentionally NOT ignored (it pins provider versions).
+
+# --- Ansible (Phase 4) ---
+*.retry
+.vault_pass*
+vault_password*
