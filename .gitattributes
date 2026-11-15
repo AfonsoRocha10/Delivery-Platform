@@ -1,0 +1,10 @@
+# Normalise line endings in the repository.
+* text=auto
+
+# Unix scripts must keep LF, otherwise they fail on Linux (Jenkins agents, Docker builds, VMs).
+mvnw text eol=lf
+*.sh text eol=lf
+
+# Windows scripts keep CRLF.
+*.cmd text eol=crlf
+*.bat text eol=crlf

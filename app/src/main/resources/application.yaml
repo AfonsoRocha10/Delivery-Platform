@@ -1,0 +1,10 @@
+spring:
+  application:
+    name: delivery-service
+
+management:
+  endpoints:
+    web:
+      exposure:
+        # Expose only the health endpoint over HTTP; other actuator endpoints can leak internal details.
+        include: health
