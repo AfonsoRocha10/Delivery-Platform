@@ -13,7 +13,7 @@ deleted.
 | 4 | [Ignore secrets and state files from the start](#4-ignore-secrets-and-state-files-from-the-start) | Accepted |
 | 5 | [YAML configuration](#5-yaml-configuration) | Accepted |
 | 6 | [Expose only the health Actuator endpoint](#6-expose-only-the-health-actuator-endpoint) | Accepted |
-| 7 | [In-memory storage in the first version](#7-in-memory-storage-in-the-first-version) | Accepted, to revisit |
+| 7 | [In-memory storage in the first version](#7-in-memory-storage-in-the-first-version) | Accepted; replacement planned for Phase 2 |
 | 8 | [RFC 9457 problem details for errors](#8-rfc-9457-problem-details-for-errors) | Accepted |
 | 9 | [Write tests together with the code](#9-write-tests-together-with-the-code) | Accepted |
 | 10 | [Package by feature, flat](#10-package-by-feature-flat) | Accepted |
@@ -105,7 +105,35 @@ cannot overwrite each other.
 build, deploy, back up and monitor); an embedded database such as H2.
 
 **Consequences:** Data is lost on restart, and only one instance can run.
-To be reconsidered when the deployment setup is in place (Phase 2–3).
+
+**Planned replacement (start of Phase 2, before the Dockerfile and
+Compose file):**
+
+- **PostgreSQL** with Spring Data JPA replacing the in-memory repository.
+  Concurrent status updates are protected by optimistic locking (a
+  version column).
+- **Flyway migrations** for the schema, instead of Hibernate generating
+  tables. Schema changes become versioned files deployed by the pipeline,
+  and must stay compatible with the previous application version so that
+  rollback (Phase 3) keeps working.
+- **A demo dataset**, separate from the schema: a few hundred realistic
+  deliveries across all statuses, loaded only when a `demo` profile is
+  active, so sample data never reaches a production-like environment by
+  accident.
+- **Testcontainers** for database tests, so tests run against a real
+  PostgreSQL rather than an in-memory substitute such as H2, whose
+  behaviour differs.
+
+**Why then:** Docker Compose (Phase 2) is the natural place to run the
+application with its database; adding it earlier would load the first CI
+setup with database concerns, adding it later would mean writing the
+Compose setup twice. The database also gives later phases real work:
+a stateful service to configure (Ansible), a real secret to protect
+(security), and data to chart (monitoring).
+
+**Cost:** One extra sub-step, and a slower build because tests start
+PostgreSQL; the new build time will be measured against the
+[baseline](deployment.md#baseline).
 
 ## 8. RFC 9457 problem details for errors
 

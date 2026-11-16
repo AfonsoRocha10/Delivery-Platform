@@ -215,8 +215,8 @@ Planned as the phases progress: `pipeline/` (Jenkinsfile), `docker/`,
 ## Design decisions
 
 - **In-memory storage.** Keeps the first version small; data is lost on
-  restart. A database will be considered when the deployment setup needs
-  persistent state.
+  restart. PostgreSQL with Flyway migrations and a demo dataset is planned
+  for the start of Phase 2.
 - **Maven Wrapper committed.** The developer machine, Jenkins and the
   Docker build all use the same Maven version.
 - **LF line endings enforced** for `mvnw` and shell scripts, which fail on
