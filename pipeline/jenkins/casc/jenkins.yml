@@ -1,0 +1,32 @@
+# Jenkins server settings, applied by the Configuration as Code plugin on every start.
+# Jobs live in jobs.yml; a setting must not be defined in both files.
+jenkins:
+  systemMessage: >-
+    Delivery Platform CI. Configured as code (pipeline/jenkins/casc);
+    changes made in the UI are lost on restart.
+
+  # Builds run on the built-in node (no separate agents yet). Set to 0 once a dedicated agent exists.
+  numExecutors: 2
+  mode: NORMAL
+
+  # Who can log in: Jenkins' own user database, single admin user, no self sign-up.
+  securityRealm:
+    local:
+      allowsSignup: false
+      users:
+        - id: "admin"
+          name: "Administrator"
+          password: "${JENKINS_ADMIN_PASSWORD}"   # from .env via compose.yml
+
+  # What logged-in users can do: everything. Anonymous visitors see only the login page.
+  authorizationStrategy:
+    loggedInUsersCanDoAnything:
+      allowAnonymousRead: false
+
+  # No inbound agent port (50000): there are no remote agents.
+  slaveAgentPort: -1
+
+unclassified:
+  # Address Jenkins uses in links to itself. Must match the URL used in the browser.
+  location:
+    url: "http://localhost:8090/"

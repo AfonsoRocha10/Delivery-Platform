@@ -1,0 +1,20 @@
+# Jenkins plugins, pinned for Jenkins 2.580.2 LTS.
+# Only top-level plugins are listed; jenkins-plugin-cli resolves their dependencies.
+# Versions resolved with:
+#   docker run --rm jenkins/jenkins:2.580.2-lts-jdk21 jenkins-plugin-cli --no-download --list --plugins <ids>
+
+# Configuration as code: Jenkins settings and jobs from casc/*.yml
+configuration-as-code:2147.v8a_8d38668c72
+job-dsl:3732.v9a_c49a_61a_313
+
+# Pipeline: Jenkinsfile support, Git checkout, Docker build containers
+workflow-aggregator:608.v67378e9d3db_1
+git:5.11.0
+docker-workflow:653.v2f2c08eff0ec
+
+# Build reporting: test results and timestamped logs
+junit:1458.1460.vd53b_087eeb_2c
+timestamper:1.30
+
+# UI: stage graph view (optional, not required by the pipeline)
+pipeline-graph-view:1053.v9df19e6ceed2

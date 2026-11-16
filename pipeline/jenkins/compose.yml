@@ -1,0 +1,34 @@
+name: delivery-jenkins
+
+services:
+  jenkins:
+    build: .
+    image: delivery-platform/jenkins:2.580.2
+    container_name: jenkins
+
+    ports:
+      - "127.0.0.1:8090:8080"
+
+    environment:
+      JENKINS_ADMIN_PASSWORD: ${JENKINS_ADMIN_PASSWORD:?set it in .env}
+
+    volumes:
+      - jenkins_home:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
+
+    # Group of /var/run/docker.sock (root:root 660 on Docker Desktop).
+    # Adds the jenkins user to that group; the container still runs as jenkins, not root.
+    group_add:
+      - "0"
+
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/login"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 90s
+
+    restart: unless-stopped
+
+volumes:
+  jenkins_home:
