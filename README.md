@@ -13,10 +13,12 @@ observable delivery pipeline.
 
 ## Current status
 
-**Phase 0 — application and baseline (in progress).** The application,
-its tests and the health endpoint are in place. The CI pipeline, container
-image, deployment automation and monitoring are not built yet; see the
-[roadmap](#roadmap).
+**Phase 0 — application and baseline: complete.** The application, its
+tests, the health endpoints and a measured
+[baseline](docs/deployment.md#baseline) of the manual process are in
+place. Next is Phase 1 (continuous integration). The CI pipeline,
+container image, deployment automation and monitoring are not built yet;
+see the [roadmap](#roadmap).
 
 ## Tech stack
 
@@ -179,6 +181,7 @@ Delivery-Platform/
 │   ├── src/main/resources/ application.yaml
 │   ├── .mvn/, mvnw, mvnw.cmd   Maven Wrapper
 │   └── pom.xml
+├── docs/                   Deployment, decisions, troubleshooting, architecture
 ├── .gitattributes          Forces LF line endings for mvnw and shell scripts
 ├── .gitignore
 ├── LICENSE
@@ -186,12 +189,20 @@ Delivery-Platform/
 ```
 
 Planned as the phases progress: `pipeline/` (Jenkinsfile), `docker/`,
-`ansible/`, `terraform/`, `monitoring/`, `security/`, `scripts/` and
-`docs/`.
+`ansible/`, `terraform/`, `monitoring/`, `security/` and `scripts/`.
+
+## Documentation
+
+| Document | Contents |
+| -------- | -------- |
+| [Deployment](docs/deployment.md) | Current manual build and deploy process, and baseline measurements |
+| [Architecture](docs/architecture.md) | Components today and the planned delivery environment |
+| [Decisions](docs/decisions.md) | Technical decisions, alternatives considered and reasons |
+| [Troubleshooting](docs/troubleshooting.md) | Known problems with their causes and fixes |
 
 ## Roadmap
 
-- [ ] **Phase 0 — Application and baseline:** API, tests, health endpoint *(in progress)*
+- [x] **Phase 0 — Application and baseline:** API, tests, health endpoint, documented baseline
 - [ ] **Phase 1 — Continuous integration:** Jenkins pipeline building and testing every change
 - [ ] **Phase 2 — Containerization:** Docker image and local Compose setup
 - [ ] **Phase 3 — Automated deployment and recovery:** repeatable deploys with health checks and rollback
@@ -213,6 +224,9 @@ Planned as the phases progress: `pipeline/` (Jenkinsfile), `docker/`,
 - **Minimal Actuator exposure.** Only `health` is reachable over HTTP.
 - **Tests are written with the code they cover**, so every commit builds
   and passes.
+
+The full reasoning, alternatives and open items are in
+[docs/decisions.md](docs/decisions.md).
 
 ## License
 
