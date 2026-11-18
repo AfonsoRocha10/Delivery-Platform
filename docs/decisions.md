@@ -25,6 +25,8 @@ deleted.
 | 16 | [Docker access through the host socket](#16-docker-access-through-the-host-socket) | Accepted for local use; to be replaced |
 | 17 | [Builds on the Jenkins server itself](#17-builds-on-the-jenkins-server-itself) | Accepted for local use; to be replaced |
 | 18 | [Manual builds until the pipeline is finished](#18-manual-builds-until-the-pipeline-is-finished) | Accepted |
+| 19 | [Maven cache in the build workspace](#19-maven-cache-in-the-build-workspace) | Accepted |
+| 20 | [One build container per Maven stage](#20-one-build-container-per-maven-stage) | Accepted |
 
 ---
 
@@ -305,3 +307,36 @@ builds every branch.
 **Consequences:** No failed builds are triggered by unfinished pipeline
 work. With polling, a build starts up to about 2 minutes after a push.
 Webhooks can replace polling if Jenkins becomes reachable from GitHub.
+
+## 19. Maven cache in the build workspace
+
+**Context:** The build container runs as the Jenkins user (`1000:1000`),
+which has no usable home folder in the Java image, and a new container
+starts for every stage. With Maven's defaults (`~/.m2`), Maven and every
+dependency would be downloaded again on each build, or fail with
+permission errors.
+
+**Decision:** The `Jenkinsfile` points Maven at `.m2/` inside the job
+workspace: `MAVEN_USER_HOME` (where the Maven Wrapper installs Maven) and
+`-Dmaven.repo.local` in `MAVEN_ARGS` (dependencies).
+
+**Alternatives:** A named Docker volume for `~/.m2` (survives deleting
+the workspace, but needs extra mount configuration and permissions); a
+Maven repository proxy such as Nexus (too much for one project).
+
+**Consequences:** Only the first build downloads anything (45.6 s first
+build, 21.8 s afterwards). Deleting the workspace or Jenkins' data empties
+the cache, which only makes the next build slower.
+
+## 20. One build container per Maven stage
+
+**Decision:** Compile, Test and Package each run in their own
+`eclipse-temurin:25-jdk` container, sharing the workspace.
+
+**Alternatives:** One container for all Maven stages, or a single
+`./mvnw verify` stage.
+
+**Consequences:** The stage view shows exactly which step failed, and
+Test publishes its results separately. Starting three containers costs
+about 13 s per build (21.8 s total, of which Maven is 8.7 s). Worth
+revisiting if build time becomes a problem.

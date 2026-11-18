@@ -55,17 +55,18 @@ CREATED ──> PICKED_UP ──> IN_TRANSIT ──> DELIVERED
 
 A Jenkins server runs locally in Docker, defined entirely as code in
 `pipeline/jenkins/`. It is reachable only from this machine and starts
-build containers through the host's Docker engine. Builds are started
-manually until the pipeline is finished. Details in [ci.md](ci.md).
+build containers through the host's Docker engine. The pipeline compiles,
+tests and packages the application and archives the jar; builds are
+still started manually. Details in [ci.md](ci.md).
 
 ```text
 Developer ──push──> GitHub
                       │  (fetched by Jenkins on "Build Now")
                       ▼
    Jenkins container (127.0.0.1:8090, Java 21)
-      │  runs pipeline/Jenkinsfile
+      │  runs pipeline/Jenkinsfile; archives the jar and test results
       ▼
-   Build container (eclipse-temurin:25-jdk) ── ./mvnw  (in progress)
+   Build container (eclipse-temurin:25-jdk) ── ./mvnw compile, test, package
 ```
 
 ## Target state (planned)

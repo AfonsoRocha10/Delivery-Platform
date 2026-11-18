@@ -20,8 +20,9 @@ place.
 
 **Phase 1 — continuous integration: in progress.** A Jenkins server,
 defined entirely as code, runs locally in Docker with the
-`delivery-platform` job; the build pipeline itself is being written
-(see [docs/ci.md](docs/ci.md)). The container image, deployment
+`delivery-platform` job. Its pipeline compiles and tests the application
+in a Java 25 container, publishes the test results and archives the jar
+(see [docs/ci.md](docs/ci.md)); builds are still started manually. The container image, deployment
 automation and monitoring are not built yet; see the
 [roadmap](#roadmap).
 
@@ -187,6 +188,7 @@ Delivery-Platform/
 │   ├── .mvn/, mvnw, mvnw.cmd   Maven Wrapper
 │   └── pom.xml
 ├── pipeline/
+│   ├── Jenkinsfile         CI pipeline: checkout, compile, test, package, archive
 │   └── jenkins/            Jenkins server as code: Dockerfile, plugins, compose, casc/
 ├── docs/                   CI, deployment, decisions, troubleshooting, architecture
 ├── .gitattributes          Forces LF line endings for mvnw and shell scripts
@@ -195,14 +197,14 @@ Delivery-Platform/
 └── README.md
 ```
 
-Planned as the phases progress: `pipeline/Jenkinsfile`, `docker/`,
+Planned as the phases progress: `docker/`,
 `ansible/`, `terraform/`, `monitoring/`, `security/` and `scripts/`.
 
 ## Documentation
 
 | Document | Contents |
 | -------- | -------- |
-| [Continuous integration](docs/ci.md) | Jenkins setup as code: how to run, change and upgrade it |
+| [Continuous integration](docs/ci.md) | Jenkins setup as code and the build pipeline: how to run, read and change them, build times |
 | [Deployment](docs/deployment.md) | Current manual build and deploy process, and baseline measurements |
 | [Architecture](docs/architecture.md) | Components today and the planned delivery environment |
 | [Decisions](docs/decisions.md) | Technical decisions, alternatives considered and reasons |
@@ -211,7 +213,7 @@ Planned as the phases progress: `pipeline/Jenkinsfile`, `docker/`,
 ## Roadmap
 
 - [x] **Phase 0 — Application and baseline:** API, tests, health endpoint, documented baseline
-- [ ] **Phase 1 — Continuous integration:** Jenkins pipeline building and testing every change *(in progress: Jenkins server done)*
+- [ ] **Phase 1 — Continuous integration:** Jenkins pipeline building and testing every change *(in progress: Jenkins server and build pipeline done)*
 - [ ] **Phase 2 — Containerization:** Docker image and local Compose setup
 - [ ] **Phase 3 — Automated deployment and recovery:** repeatable deploys with health checks and rollback
 - [ ] **Phase 4 — Configuration management:** Ansible playbooks for the deployment host
