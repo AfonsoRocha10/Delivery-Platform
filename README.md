@@ -16,9 +16,14 @@ observable delivery pipeline.
 **Phase 0 — application and baseline: complete.** The application, its
 tests, the health endpoints and a measured
 [baseline](docs/deployment.md#baseline) of the manual process are in
-place. Next is Phase 1 (continuous integration). The CI pipeline,
-container image, deployment automation and monitoring are not built yet;
-see the [roadmap](#roadmap).
+place.
+
+**Phase 1 — continuous integration: in progress.** A Jenkins server,
+defined entirely as code, runs locally in Docker with the
+`delivery-platform` job; the build pipeline itself is being written
+(see [docs/ci.md](docs/ci.md)). The container image, deployment
+automation and monitoring are not built yet; see the
+[roadmap](#roadmap).
 
 ## Tech stack
 
@@ -27,7 +32,7 @@ see the [roadmap](#roadmap).
 | Application              | Java 25 (LTS), Spring Boot 4.1.2      | In use  |
 | Build                    | Maven 3.10.0 via the Maven Wrapper    | In use  |
 | Tests                    | JUnit 5, Spring Boot Test             | In use  |
-| CI/CD                    | Jenkins                               | Planned |
+| CI/CD                    | Jenkins 2.580.2 LTS (Docker, Configuration as Code) | In progress |
 | Packaging                | Docker                                | Planned |
 | Configuration management | Ansible                               | Planned |
 | Infrastructure as code   | Terraform                             | Planned |
@@ -181,20 +186,23 @@ Delivery-Platform/
 │   ├── src/main/resources/ application.yaml
 │   ├── .mvn/, mvnw, mvnw.cmd   Maven Wrapper
 │   └── pom.xml
-├── docs/                   Deployment, decisions, troubleshooting, architecture
+├── pipeline/
+│   └── jenkins/            Jenkins server as code: Dockerfile, plugins, compose, casc/
+├── docs/                   CI, deployment, decisions, troubleshooting, architecture
 ├── .gitattributes          Forces LF line endings for mvnw and shell scripts
 ├── .gitignore
 ├── LICENSE
 └── README.md
 ```
 
-Planned as the phases progress: `pipeline/` (Jenkinsfile), `docker/`,
+Planned as the phases progress: `pipeline/Jenkinsfile`, `docker/`,
 `ansible/`, `terraform/`, `monitoring/`, `security/` and `scripts/`.
 
 ## Documentation
 
 | Document | Contents |
 | -------- | -------- |
+| [Continuous integration](docs/ci.md) | Jenkins setup as code: how to run, change and upgrade it |
 | [Deployment](docs/deployment.md) | Current manual build and deploy process, and baseline measurements |
 | [Architecture](docs/architecture.md) | Components today and the planned delivery environment |
 | [Decisions](docs/decisions.md) | Technical decisions, alternatives considered and reasons |
@@ -203,7 +211,7 @@ Planned as the phases progress: `pipeline/` (Jenkinsfile), `docker/`,
 ## Roadmap
 
 - [x] **Phase 0 — Application and baseline:** API, tests, health endpoint, documented baseline
-- [ ] **Phase 1 — Continuous integration:** Jenkins pipeline building and testing every change
+- [ ] **Phase 1 — Continuous integration:** Jenkins pipeline building and testing every change *(in progress: Jenkins server done)*
 - [ ] **Phase 2 — Containerization:** Docker image and local Compose setup
 - [ ] **Phase 3 — Automated deployment and recovery:** repeatable deploys with health checks and rollback
 - [ ] **Phase 4 — Configuration management:** Ansible playbooks for the deployment host

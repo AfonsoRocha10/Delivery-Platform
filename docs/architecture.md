@@ -51,9 +51,27 @@ CREATED ──> PICKED_UP ──> IN_TRANSIT ──> DELIVERED
 - No authentication.
 - Built, run and checked by hand; see [deployment.md](deployment.md).
 
+### Continuous integration (in progress)
+
+A Jenkins server runs locally in Docker, defined entirely as code in
+`pipeline/jenkins/`. It is reachable only from this machine and starts
+build containers through the host's Docker engine. Builds are started
+manually until the pipeline is finished. Details in [ci.md](ci.md).
+
+```text
+Developer ──push──> GitHub
+                      │  (fetched by Jenkins on "Build Now")
+                      ▼
+   Jenkins container (127.0.0.1:8090, Java 21)
+      │  runs pipeline/Jenkinsfile
+      ▼
+   Build container (eclipse-temurin:25-jdk) ── ./mvnw  (in progress)
+```
+
 ## Target state (planned)
 
-Each element below is added in its own phase; none of it exists yet.
+Each element below is added in its own phase. Jenkins exists (see
+above); the rest does not exist yet.
 
 ```text
 Developer ──push──> GitHub

@@ -19,6 +19,12 @@ deleted.
 | 10 | [Package by feature, flat](#10-package-by-feature-flat) | Accepted |
 | 11 | [Health check over real HTTP in tests](#11-health-check-over-real-http-in-tests) | Accepted |
 | 12 | [Defer loading Mockito as a Java agent](#12-defer-loading-mockito-as-a-java-agent) | Deferred |
+| 13 | [Jenkins in Docker, configured as code](#13-jenkins-in-docker-configured-as-code) | Accepted |
+| 14 | [Jenkins on Java 21, builds on Java 25](#14-jenkins-on-java-21-builds-on-java-25) | Accepted |
+| 15 | [Jenkins reachable from this machine only](#15-jenkins-reachable-from-this-machine-only) | Accepted |
+| 16 | [Docker access through the host socket](#16-docker-access-through-the-host-socket) | Accepted for local use; to be replaced |
+| 17 | [Builds on the Jenkins server itself](#17-builds-on-the-jenkins-server-itself) | Accepted for local use; to be replaced |
+| 18 | [Manual builds until the pipeline is finished](#18-manual-builds-until-the-pipeline-is-finished) | Accepted |
 
 ---
 
@@ -68,8 +74,8 @@ and credentials.
 `.env` and key files, Terraform state and Ansible vault files.
 
 **Consequences:** Accidental commits of secrets are prevented before those
-tools are even added. Automated secret scanning in CI is still planned
-(Phase 7).
+tools are even added. Automated secret scanning (gitleaks) is planned as
+a stage of the CI pipeline in Phase 1.
 
 ## 5. YAML configuration
 
@@ -195,3 +201,107 @@ and add `-javaagent:${org.mockito:mockito-core:jar}` to the Surefire
 
 **When to revisit:** When CI is introduced (to keep build logs clean) or
 on the next Spring Boot / JDK upgrade.
+
+## 13. Jenkins in Docker, configured as code
+
+**Context:** A Jenkins server configured by clicking through its UI cannot
+be reproduced, reviewed or recovered, which is the same problem this
+project removes from deployments.
+
+**Decision:** Jenkins runs in a container built from
+`pipeline/jenkins/Dockerfile`. Everything is in files:
+
+- the Jenkins version (pinned LTS image tag);
+- the plugins (`plugins.txt`, pinned versions; only top-level plugins are
+  listed and their dependencies are resolved automatically);
+- server settings (`casc/jenkins.yml`, Configuration as Code);
+- jobs (`casc/jobs.yml`, Job DSL);
+- how it runs (`compose.yml`) and its secrets (`.env`, not committed).
+
+Server settings and jobs are separate files with one purpose each; the
+build steps live in the application repository's `Jenkinsfile`.
+
+**Alternatives:** Install Jenkins on the machine and configure it in the
+UI; a single configuration file for everything.
+
+**Consequences:** `docker compose down -v` followed by `up` recreates an
+identical Jenkins (verified). Changes are reviewed as Git diffs. Settings
+changed in the UI are overwritten on restart. Pushing code to the
+repository can change what a build does, but not who can log in to
+Jenkins.
+
+## 14. Jenkins on Java 21, builds on Java 25
+
+**Context:** The application requires Java 25. Jenkins itself only needs
+a Java version it supports.
+
+**Decision:** The Jenkins server runs on Java 21
+(`jenkins/jenkins:2.580.2-lts-jdk21`). The application is compiled and
+tested inside an `eclipse-temurin:25-jdk` build container defined in the
+`Jenkinsfile`.
+
+**Consequences:** Jenkins and the build JDK can be upgraded
+independently. The JDK used for builds is pinned in the pipeline, not
+installed into Jenkins by hand.
+
+## 15. Jenkins reachable from this machine only
+
+**Decision:** The UI is published on `127.0.0.1:8090` only (port 8080 is
+used by another service). The inbound agent port is disabled, self
+sign-up is off and anonymous users see only the login page.
+
+**Consequences:** Nothing is exposed to the local network. GitHub cannot
+reach Jenkins, so builds cannot be triggered by webhooks (see
+[18](#18-manual-builds-until-the-pipeline-is-finished)). Exposing Jenkins
+later requires HTTPS through a reverse proxy.
+
+## 16. Docker access through the host socket
+
+**Context:** Build stages run in containers (Java 25, later gitleaks and
+image builds), so Jenkins needs a Docker engine.
+
+**Decision:** The host's Docker socket is mounted into the Jenkins
+container. The `jenkins` user is added to the socket's group (`0` on
+Docker Desktop, where the socket is `root:root 660`); Jenkins still runs
+as `uid=1000`, not as root.
+
+**Alternatives:** A separate Docker-in-Docker service (isolated engine,
+but needs TLS certificates between the two containers); a dedicated build
+agent with its own Docker.
+
+**Risk:** Anything that can use the socket controls the host's Docker
+engine, which is close to administrator access on the machine. Accepted
+for a local, single-user lab.
+
+**When to revisit:** Before Jenkins builds code from sources other than
+this repository, or runs anywhere other than this machine. The change is
+limited to `compose.yml`; the `Jenkinsfile` stays the same.
+
+## 17. Builds on the Jenkins server itself
+
+**Decision:** The Jenkins server (the "built-in node") has 2 executors
+and runs the pipeline. The heavy work runs inside build containers.
+
+**Risk:** A build running on the server can read Jenkins' own files.
+Jenkins shows a warning about this. Accepted for a local, single-user
+lab.
+
+**When to revisit:** Together with
+[16](#16-docker-access-through-the-host-socket): add a dedicated agent and
+set `numExecutors: 0` in `casc/jenkins.yml`.
+
+## 18. Manual builds until the pipeline is finished
+
+**Decision:** The `delivery-platform` job has no trigger while the
+`Jenkinsfile` is being written; builds are started with **Build Now**.
+Once the pipeline is complete, Jenkins will poll GitHub every 2 minutes
+and build only when `main` changes in code paths (`app/` or
+`pipeline/Jenkinsfile`), not for documentation changes.
+
+**Alternatives:** GitHub webhooks (instant, but GitHub cannot reach a
+Jenkins bound to `127.0.0.1` without a tunnel); a multibranch job that
+builds every branch.
+
+**Consequences:** No failed builds are triggered by unfinished pipeline
+work. With polling, a build starts up to about 2 minutes after a push.
+Webhooks can replace polling if Jenkins becomes reachable from GitHub.
