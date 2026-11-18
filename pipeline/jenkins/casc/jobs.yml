@@ -13,6 +13,9 @@ jobs:
       // A single Pipeline job. What the build does is defined in the Jenkinsfile, not here:
       // this job only says WHERE to find the code and the Jenkinsfile.
       pipelineJob('delivery-platform') {
+        parameters {
+            stringParam('BRANCH', 'main' , 'Branch to build. Use main except for experiments such as the failure exercise.')
+        }
         description('Builds and tests the Delivery Platform application. Defined in pipeline/jenkins/casc/jobs.yml.')
 
         definition {
@@ -24,8 +27,7 @@ jobs:
                   // Public repository: no credentials needed to clone.
                   url('https://github.com/AfonsoRocha10/Delivery-Platform.git')
                 }
-                // Only main is built.
-                branch('*/main')
+                branch('*/^${BRANCH}')
               }
             }
             // Location of the Jenkinsfile inside the repository.
@@ -36,6 +38,6 @@ jobs:
           }
         }
 
-        // No triggers yet: builds are started manually ("Build Now") until the
+        // No triggers yet: builds are started manually ("Build with Parameters") until the
         // Jenkinsfile is finished. Automatic polling of main is added in step 1.5.
       }
