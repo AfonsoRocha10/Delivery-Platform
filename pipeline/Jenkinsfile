@@ -1,0 +1,79 @@
+// Build pipeline for the delivery-service application.
+// Run by the 'delivery-platform' job (pipeline/jenkins/casc/jobs.yml).
+pipeline {
+    // Checkout and archiving run on the Jenkins server (it has git).
+    // Maven stages run in a Java 25 container that shares the same workspace.
+    agent any
+
+    options {
+        skipDefaultCheckout()
+        timestamps()
+        timeout(time: 15, unit: 'MINUTES')
+        buildDiscarder(logRotator(numToKeepStr: '20'))
+        disableConcurrentBuilds()
+    }
+
+    environment {
+        // Keep Maven and its dependencies in the workspace: the build container user has no
+        // usable home folder, and the workspace survives between builds, so this is also a cache.
+        MAVEN_USER_HOME = "${WORKSPACE}/.m2"
+        MAVEN_ARGS      = "-B -ntp -Dmaven.repo.local=${WORKSPACE}/.m2/repository"
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                script {
+                    def scmVars = checkout scm
+                    // Name the build after the commit it built, e.g. "#7 cb03dc9".
+                    currentBuild.displayName = "#${env.BUILD_NUMBER} ${scmVars.GIT_COMMIT.take(7)}"
+                }
+            }
+        }
+
+        stage('Compile') {
+            agent { docker { image 'eclipse-temurin:25-jdk'; reuseNode true } }
+            steps {
+                dir('app') {
+                    sh 'java -version && ./mvnw --version'
+                    sh './mvnw compile'
+                }
+            }
+        }
+
+        stage('Test') {
+            agent { docker { image 'eclipse-temurin:25-jdk'; reuseNode true } }
+            steps {
+                dir('app') {
+                    sh './mvnw test'
+                }
+            }
+            post {
+                always {
+                    junit 'app/target/surefire-reports/*.xml'
+                }
+            }
+        }
+
+        stage('Package') {
+            agent { docker { image 'eclipse-temurin:25-jdk'; reuseNode true } }
+            steps {
+                dir('app') {
+                    // Tests already ran in the Test stage.
+                    sh './mvnw package -DskipTests'
+                }
+            }
+        }
+
+        stage('Archive') {
+            steps {
+                archiveArtifacts artifacts: 'app/target/*.jar', fingerprint: true
+            }
+        }
+    }
+
+    post {
+        success { echo "Built ${currentBuild.displayName}" }
+        failure { echo 'Build failed: check the stage marked red and its log.' }
+    }
+}
