@@ -1,5 +1,6 @@
 // Build pipeline for the delivery-service application.
-// Run by the 'delivery-platform' job (pipeline/jenkins/casc/jobs.yml).
+// Run by the 'delivery-platform' job (pipeline/jenkins/casc/jobs.yml): automatically on every push
+// to main that changes app/ or this file, or manually with "Build with Parameters".
 pipeline {
     // Checkout and archiving run on the Jenkins server (it has git).
     // Maven stages run in a Java 25 container that shares the same workspace.
