@@ -31,6 +31,26 @@ pipeline {
             }
         }
 
+        stage('Secret scan') {
+            // The image's entrypoint is 'gitleaks'; clear it so Jenkins can keep the container alive.
+            agent { docker { image 'zricethezav/gitleaks:v8.28.0'; args '--entrypoint='; reuseNode true } }
+            steps {
+                // Scan every commit (a secret deleted later is still in the history), not the
+                // files on disk, which would include the Maven cache in .m2/. Exits 1 on a finding.
+                // --log-opts=HEAD: only the history of the commit being built; the default (--all)
+                // would also scan stale branches left in the workspace. --redact keeps secrets out of this log.
+                sh '''
+                    gitleaks git --log-opts=HEAD --redact --verbose --no-banner --no-color \
+                        --report-format json --report-path gitleaks-report.json .
+                '''
+            }
+            post {
+                always {
+                    archiveArtifacts artifacts: 'gitleaks-report.json', allowEmptyArchive: true
+                }
+            }
+        }
+
         stage('Compile') {
             agent { docker { image 'eclipse-temurin:25-jdk'; reuseNode true } }
             steps {
