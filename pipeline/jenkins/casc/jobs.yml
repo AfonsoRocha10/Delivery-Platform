@@ -49,6 +49,13 @@ jobs:
         // Build automatically when a commit is pushed to main: GitHub sends a webhook (through the
         // smee relay in compose.yml) and Jenkins checks main once. No scheduled polling.
         // "Build with Parameters" still works for manual builds of other branches.
+        //
+        // Known limitations:
+        // - The push check compares against the LAST build, including its BRANCH value. After a
+        //   manual build of another branch, a push to main is compared against that branch and
+        //   may not build. Start a main build manually after any branch build.
+        // - With no previous build (new job, or after 'down -v'), the first push always builds,
+        //   whatever files it changed.
         properties {
           pipelineTriggers {
             triggers {
