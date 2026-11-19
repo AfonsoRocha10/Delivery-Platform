@@ -21,8 +21,10 @@ process are in place.
 defined entirely as code, runs locally in Docker with the
 `delivery-platform` job. Its pipeline scans the Git history for committed
 secrets (gitleaks), compiles and tests the application in a Java 25
-container, publishes the test results and archives the jar; builds are
-still started manually. The container image, deployment automation and
+container, publishes the test results and archives the jar. Every push to
+`main` that changes the application or the pipeline starts a build
+automatically, through a GitHub webhook relayed to the local Jenkins
+(smee.io), so Jenkins is never exposed. The container image, deployment automation and
 monitoring are not built yet; see the
 [roadmap](#roadmap).
 
@@ -189,7 +191,7 @@ Delivery-Platform/
 │   └── pom.xml
 ├── pipeline/
 │   ├── Jenkinsfile         CI pipeline: checkout, secret scan, compile, test, package, archive
-│   └── jenkins/            Jenkins server as code: Dockerfile, plugins, compose, casc/
+│   └── jenkins/            Jenkins server as code: Dockerfile, plugins, compose, casc/, smee/ webhook relay
 ├── .gitattributes          Forces LF line endings for mvnw and shell scripts
 ├── .gitignore
 ├── LICENSE
@@ -202,7 +204,7 @@ Planned as the phases progress: `docker/`,
 ## Roadmap
 
 - [x] **Phase 0 — Application and baseline:** API, tests, health endpoint, documented baseline
-- [ ] **Phase 1 — Continuous integration:** Jenkins pipeline building and testing every change *(in progress: Jenkins server, build pipeline and secret scan done)*
+- [ ] **Phase 1 — Continuous integration:** Jenkins pipeline building and testing every change *(in progress: Jenkins server, build pipeline, secret scan and automatic builds on push done)*
 - [ ] **Phase 2 — Containerization:** Docker image and local Compose setup
 - [ ] **Phase 3 — Automated deployment and recovery:** repeatable deploys with health checks and rollback
 - [ ] **Phase 4 — Configuration management:** Ansible playbooks for the deployment host
