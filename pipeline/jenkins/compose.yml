@@ -11,6 +11,7 @@ services:
 
     environment:
       JENKINS_ADMIN_PASSWORD: ${JENKINS_ADMIN_PASSWORD:?set it in .env}
+      GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:?set it in .env}
 
     volumes:
       - jenkins_home:/var/jenkins_home
@@ -28,6 +29,24 @@ services:
       retries: 5
       start_period: 90s
 
+    restart: unless-stopped
+
+  # Forwards GitHub push events from the smee.io channel to Jenkins' webhook endpoint.
+  # It only opens an outbound connection: no port is published and Jenkins stays on 127.0.0.1.
+  smee:
+    build: ./smee
+    image: delivery-platform/smee-client:5.0.0
+    container_name: jenkins-smee
+    # The query string is deliberate: smee-client removes a trailing '/' from the target, and
+    # Jenkins answers '/github-webhook' (no slash) with a redirect that turns the POST into a GET (405).
+    command:
+      - --url
+      - ${SMEE_URL:?set it in .env}
+      - --target
+      - http://jenkins:8080/github-webhook/?source=smee
+    depends_on:
+      jenkins:
+        condition: service_healthy
     restart: unless-stopped
 
 volumes:

@@ -28,6 +28,14 @@ jobs:
                   url('https://github.com/AfonsoRocha10/Delivery-Platform.git')
                 }
                 branch('*/^${BRANCH}')
+                extensions {
+                  // A push builds only if it changes the application or the pipeline
+                  // (one Java regex per line). Changes to other files, e.g. README.md, are ignored.
+                  pathRestriction {
+                    includedRegions('app/.*\npipeline/Jenkinsfile')
+                    excludedRegions('')
+                  }
+                }
               }
             }
             // Location of the Jenkinsfile inside the repository.
@@ -38,6 +46,14 @@ jobs:
           }
         }
 
-        // No triggers yet: builds are started manually ("Build with Parameters") until the
-        // Jenkinsfile is finished. Automatic polling of main is added in step 1.5.
+        // Build automatically when a commit is pushed to main: GitHub sends a webhook (through the
+        // smee relay in compose.yml) and Jenkins checks main once. No scheduled polling.
+        // "Build with Parameters" still works for manual builds of other branches.
+        properties {
+          pipelineTriggers {
+            triggers {
+              githubPush()
+            }
+          }
+        }
       }

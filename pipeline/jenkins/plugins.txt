@@ -12,6 +12,9 @@ workflow-aggregator:608.v67378e9d3db_1
 git:5.11.0
 docker-workflow:653.v2f2c08eff0ec
 
+# Automatic builds: /github-webhook/ endpoint and the "build on GitHub push" trigger
+github:1.47.0
+
 # Build reporting: test results and timestamped logs
 junit:1458.1460.vd53b_087eeb_2c
 timestamper:1.30

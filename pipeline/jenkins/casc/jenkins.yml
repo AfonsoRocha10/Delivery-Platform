@@ -26,7 +26,24 @@ jenkins:
   # No inbound agent port (50000): there are no remote agents.
   slaveAgentPort: -1
 
+credentials:
+  system:
+    domainCredentials:
+      - credentials:
+          # Secret GitHub signs webhook events with (from .env via compose.yml).
+          - string:
+              scope: GLOBAL
+              id: "github-webhook-secret"
+              description: "GitHub webhook signature secret"
+              secret: "${GITHUB_WEBHOOK_SECRET}"
+
 unclassified:
   # Address Jenkins uses in links to itself. Must match the URL used in the browser.
   location:
     url: "http://localhost:8090/"
+
+  # GitHub plugin: reject webhook events that are not signed with the secret above.
+  # The webhook itself is created in the GitHub repository settings, not by Jenkins.
+  gitHubPluginConfig:
+    hookSecretConfigs:
+      - credentialsId: "github-webhook-secret"
