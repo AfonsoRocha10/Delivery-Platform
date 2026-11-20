@@ -48,6 +48,28 @@
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
 			</plugin>
+			<!-- Load Mockito as a Java agent instead of letting it self-attach,
+			     which JDK 21+ warns about and a future JDK will block (decision 12).
+			     The properties goal exposes each dependency's jar path as a property.
+			     -Xshare:off avoids the JVM's class-sharing warning that the agent triggers. -->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-dependency-plugin</artifactId>
+				<executions>
+					<execution>
+						<goals>
+							<goal>properties</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-surefire-plugin</artifactId>
+				<configuration>
+					<argLine>-Xshare:off -javaagent:${org.mockito:mockito-core:jar}</argLine>
+				</configuration>
+			</plugin>
 		</plugins>
 	</build>
 
