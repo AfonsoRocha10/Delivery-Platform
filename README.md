@@ -17,16 +17,18 @@ observable delivery pipeline.
 tests, the health endpoints and a measured baseline of the manual
 process are in place.
 
-**Phase 1 — continuous integration: in progress.** A Jenkins server,
+**Phase 1 — continuous integration: complete.** A Jenkins server,
 defined entirely as code, runs locally in Docker with the
 `delivery-platform` job. Its pipeline scans the Git history for committed
 secrets (gitleaks), compiles and tests the application in a Java 25
-container, publishes the test results and archives the jar. Every push to
-`main` that changes the application or the pipeline starts a build
-automatically, through a GitHub webhook relayed to the local Jenkins
-(smee.io), so Jenkins is never exposed. The container image, deployment automation and
-monitoring are not built yet; see the
-[roadmap](#roadmap).
+container, publishes the test results and archives the jar; a build takes
+about 24 seconds. Every push to `main` that changes the application or
+the pipeline starts a build automatically, through a GitHub webhook
+relayed to the local Jenkins (smee.io), so Jenkins is never exposed. A
+failing test or a committed secret fails the build.
+
+The container image, deployment automation and monitoring are not built
+yet; see the [roadmap](#roadmap).
 
 ## Tech stack
 
@@ -35,7 +37,7 @@ monitoring are not built yet; see the
 | Application              | Java 25 (LTS), Spring Boot 4.1.2      | In use  |
 | Build                    | Maven 3.10.0 via the Maven Wrapper    | In use  |
 | Tests                    | JUnit 5, Spring Boot Test             | In use  |
-| CI/CD                    | Jenkins 2.580.2 LTS (Docker, Configuration as Code) | In progress |
+| CI/CD                    | Jenkins 2.580.2 LTS (Docker, Configuration as Code) | In use  |
 | Packaging                | Docker                                | Planned |
 | Configuration management | Ansible                               | Planned |
 | Infrastructure as code   | Terraform                             | Planned |
@@ -204,7 +206,7 @@ Planned as the phases progress: `docker/`,
 ## Roadmap
 
 - [x] **Phase 0 — Application and baseline:** API, tests, health endpoint, documented baseline
-- [ ] **Phase 1 — Continuous integration:** Jenkins pipeline building and testing every change *(in progress: Jenkins server, build pipeline, secret scan and automatic builds on push done)*
+- [x] **Phase 1 — Continuous integration:** Jenkins pipeline building and testing every change, with a secret scan and automatic builds on push
 - [ ] **Phase 2 — Containerization:** Docker image and local Compose setup
 - [ ] **Phase 3 — Automated deployment and recovery:** repeatable deploys with health checks and rollback
 - [ ] **Phase 4 — Configuration management:** Ansible playbooks for the deployment host
