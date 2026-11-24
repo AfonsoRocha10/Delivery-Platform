@@ -155,10 +155,14 @@ pipeline {
             // cached in the workspace (.trivy-cache), like the Maven cache, and only updated afterwards.
             agent { docker { image 'aquasec/trivy:0.76.2'; args '--entrypoint='; reuseNode true } }
             steps {
+                // Full report (all severities) as JSON for the archive; the log shows HIGH and CRITICAL
+                // findings only (--table-mode detailed: no summary row for each of the ~80 jars).
                 sh '''
+                    export TRIVY_DISABLE_VEX_NOTICE=1
                     trivy image --input image.tar --scanners vuln --exit-code 0 --no-progress \
                       --cache-dir .trivy-cache --format json --output trivy-report.json
-                    trivy convert --format table --severity HIGH,CRITICAL trivy-report.json
+                    trivy convert --scanners vuln --format table --table-mode detailed \
+                      --severity HIGH,CRITICAL trivy-report.json
                 '''
             }
             post {
