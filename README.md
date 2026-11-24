@@ -21,8 +21,9 @@ process are in place.
 defined entirely as code, runs locally in Docker with the
 `delivery-platform` job. Its pipeline scans the Git history for committed
 secrets (gitleaks), compiles and tests the application in a Java 25
-container, publishes the test results and archives the jar; a build took
-about 24 seconds before the database tests were added. Every push to
+container, publishes the test results and archives the jar; a build takes
+about 43 seconds (about 24 before the database tests were added, which
+start PostgreSQL containers). Every push to
 `main` that changes the application or the pipeline starts a build
 automatically, through a GitHub webhook
 relayed to the local Jenkins (smee.io), so Jenkins is never exposed. A
