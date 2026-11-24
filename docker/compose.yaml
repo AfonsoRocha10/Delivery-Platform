@@ -1,0 +1,76 @@
+# Local environment: the application and its PostgreSQL database.
+#   cp docker/.env.example docker/.env      then set DB_PASSWORD in docker/.env (ignored by Git)
+#   docker compose -f docker/compose.yaml up -d --build
+#   docker compose -f docker/compose.yaml ps          both services should be "healthy"
+#   docker compose -f docker/compose.yaml down        stop; add -v to also delete the data
+# Compose reads docker/.env automatically (the folder of this file).
+
+# Fixed project name; otherwise Compose would use the folder name ("docker") as prefix.
+name: delivery-platform
+
+services:
+  postgres:
+    # Same image as the tests (Testcontainers) use.
+    image: postgres:18.7-alpine3.24
+    environment:
+      POSTGRES_DB: delivery
+      POSTGRES_USER: delivery
+      # Required: Compose stops with this message if it is missing, so the database never
+      # starts without a password.
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in docker/.env}
+    volumes:
+      # PostgreSQL 18 images keep their data under /var/lib/postgresql/18/docker and declare the
+      # volume at /var/lib/postgresql. Mounting the older .../postgresql/data path would miss it.
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      # Healthy only once PostgreSQL accepts connections (the image initialises, then restarts once).
+      test: ["CMD", "pg_isready", "-U", "delivery", "-d", "delivery"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    # No published port: only the application needs it, over the Compose network.
+    # For psql: docker compose -f docker/compose.yaml exec postgres psql -U delivery
+    restart: unless-stopped
+
+  app:
+    build:
+      context: ../app
+    image: delivery-service:local
+    environment:
+      # "postgres" is the service name, resolved on the Compose network.
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/delivery
+      SPRING_DATASOURCE_USERNAME: delivery
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in docker/.env}
+      # Empty by default; "demo" loads sample data into an empty database.
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-}
+    ports:
+      # This machine only; 8081 because 8080 is often taken. Changeable in .env, no rebuild.
+      - "127.0.0.1:${APP_PORT:-8081}:8080"
+    depends_on:
+      # Start only when the database accepts connections, so Flyway does not fail at startup.
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      # Readiness includes the database: during a database outage this fails, so the container
+      # is reported unhealthy. wget is part of the image's BusyBox.
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/actuator/health/readiness"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
+    # Heap is 75 % of this (MaxRAMPercentage in the image), about 384 MB.
+    mem_limit: 512m
+    # Hardening: read-only filesystem except /tmp (Tomcat's temporary files), no Linux
+    # capabilities (port 8080 needs none), and no way to gain privileges later.
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
