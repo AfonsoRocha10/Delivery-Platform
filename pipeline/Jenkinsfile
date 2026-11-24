@@ -26,8 +26,11 @@ pipeline {
             steps {
                 script {
                     def scmVars = checkout scm
+                    // Commit of this build, for the image tag and labels in later stages.
+                    env.GIT_COMMIT_FULL = scmVars.GIT_COMMIT
+                    env.GIT_SHORT = scmVars.GIT_COMMIT.take(7)
                     // Name the build after the commit it built, e.g. "#7 cb03dc9".
-                    currentBuild.displayName = "#${env.BUILD_NUMBER} ${scmVars.GIT_COMMIT.take(7)}"
+                    currentBuild.displayName = "#${env.BUILD_NUMBER} ${env.GIT_SHORT}"
                 }
             }
         }
@@ -108,6 +111,61 @@ pipeline {
         stage('Archive') {
             steps {
                 archiveArtifacts artifacts: 'app/target/*.jar', fingerprint: true
+            }
+        }
+
+        stage('Image') {
+            // Runs on the Jenkins server: it has the docker CLI (with Buildx) and the host's Docker
+            // engine. Same app/Dockerfile as local builds, so the image is built the same way.
+            steps {
+                dir('app') {
+                    // Tag: the commit, never "latest", so the tag says exactly which code is inside.
+                    // Label ci-build: lets the cleanup below remove only images built by CI.
+                    sh '''
+                        docker build -t "delivery-service:${GIT_SHORT}" \
+                          --label delivery-platform.ci-build=true \
+                          --build-arg REVISION="${GIT_COMMIT_FULL}" \
+                          --build-arg CREATED="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+                          .
+                    '''
+                }
+                // Which image this build produced (tag and ID), archived with the build.
+                sh '''
+                    echo "delivery-service:${GIT_SHORT} $(docker image inspect --format '{{.Id}}' "delivery-service:${GIT_SHORT}")" > image.txt
+                    cat image.txt
+                '''
+                // A file copy of the image for the scan, so the scanner needs no Docker access.
+                sh 'docker save -o image.tar "delivery-service:${GIT_SHORT}"'
+            }
+            post {
+                success {
+                    archiveArtifacts artifacts: 'image.txt'
+                }
+                always {
+                    // Remove CI images older than 7 days that no container uses; images without the
+                    // label (e.g. delivery-service:local) are never touched.
+                    sh 'docker image prune -af --filter label=delivery-platform.ci-build=true --filter until=168h'
+                }
+            }
+        }
+
+        stage('Image scan') {
+            // Non-blocking (--exit-code 0): findings are reported, never fail the build; Phase 7 sets the
+            // policy. Reads image.tar instead of the Docker socket. The vulnerability databases are
+            // cached in the workspace (.trivy-cache), like the Maven cache, and only updated afterwards.
+            agent { docker { image 'aquasec/trivy:0.76.2'; args '--entrypoint='; reuseNode true } }
+            steps {
+                sh '''
+                    trivy image --input image.tar --scanners vuln --exit-code 0 --no-progress \
+                      --cache-dir .trivy-cache --format json --output trivy-report.json
+                    trivy convert --format table --severity HIGH,CRITICAL trivy-report.json
+                '''
+            }
+            post {
+                always {
+                    archiveArtifacts artifacts: 'trivy-report.json', allowEmptyArchive: true
+                    sh 'rm -f image.tar'
+                }
             }
         }
     }
