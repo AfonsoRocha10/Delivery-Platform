@@ -36,8 +36,10 @@ Flyway migrations, concurrent updates of the same delivery are detected
 Testcontainers. An optional `demo` profile fills an empty database with
 300 sample deliveries. In Jenkins, the Test stage is given access to the
 Docker engine so that Testcontainers can start PostgreSQL there too.
-Next: the application's Docker image and a Compose setup with the
-database.
+The application also builds as a Docker image: multi-stage, Java 25
+runtime only, running as a non-root user, with no configuration or
+secrets inside. Next: a Compose setup with the application and the
+database, and building the image in CI.
 
 The container image, deployment automation and monitoring are not built
 yet; see the [roadmap](#roadmap).
@@ -51,7 +53,7 @@ yet; see the [roadmap](#roadmap).
 | Build                    | Maven 3.10.0 via the Maven Wrapper    | In use  |
 | Tests                    | JUnit 5, Spring Boot Test, Testcontainers | In use  |
 | CI/CD                    | Jenkins 2.580.2 LTS (Docker, Configuration as Code) | In use  |
-| Packaging                | Docker                                | Planned |
+| Packaging                | Docker (multi-stage image, Temurin 25 JRE on Alpine) | In use  |
 | Configuration management | Ansible                               | Planned |
 | Infrastructure as code   | Terraform                             | Planned |
 | Monitoring               | Prometheus + Grafana                  | Planned |
@@ -121,6 +123,38 @@ them.
 
 To stop: `Ctrl+C` for the application, then
 `docker rm -f delivery-postgres` (this also deletes the data).
+
+### Run as a container
+
+Build the image (tests are not run in the image build; they run with
+`./mvnw verify` and in CI):
+
+```bash
+cd app
+docker build -t delivery-service:local --build-arg REVISION=$(git rev-parse --short HEAD) .
+```
+
+Run it next to PostgreSQL on a private Docker network, where containers
+reach each other by name:
+
+```bash
+export DB_PASSWORD='choose-a-local-password'
+docker network create delivery-net
+docker run -d --name delivery-postgres --network delivery-net \
+  -e POSTGRES_DB=delivery -e POSTGRES_USER=delivery -e POSTGRES_PASSWORD="$DB_PASSWORD" \
+  postgres:18.7-alpine3.24
+docker run -d --name delivery-app --network delivery-net -p 127.0.0.1:8080:8080 \
+  -e SPRING_DATASOURCE_URL=jdbc:postgresql://delivery-postgres:5432/delivery \
+  -e SPRING_DATASOURCE_USERNAME=delivery \
+  -e SPRING_DATASOURCE_PASSWORD="$DB_PASSWORD" \
+  delivery-service:local
+curl http://localhost:8080/actuator/health/readiness
+```
+
+The container runs as a non-root user and shuts down gracefully on
+`docker stop`. Clean up with
+`docker rm -f delivery-app delivery-postgres && docker network rm delivery-net`.
+A Compose file that does all of this in one command is planned next.
 
 ## API
 
@@ -237,6 +271,7 @@ Delivery-Platform/
 │   ├── src/test/java/      Unit, web and database tests (Testcontainers)
 │   ├── src/main/resources/ application.yaml, db/migration/ (Flyway SQL migrations)
 │   ├── .mvn/, mvnw, mvnw.cmd   Maven Wrapper
+│   ├── Dockerfile, .dockerignore   Application image (multi-stage, non-root)
 │   └── pom.xml
 ├── pipeline/
 │   ├── Jenkinsfile         CI pipeline: checkout, secret scan, compile, test (with PostgreSQL via Docker), package, archive
@@ -247,13 +282,13 @@ Delivery-Platform/
 └── README.md
 ```
 
-Planned as the phases progress: `docker/`,
+Planned as the phases progress: `docker/` (Compose),
 `ansible/`, `terraform/`, `monitoring/`, `security/` and `scripts/`.
 
 ## Known limitations
 
 - **No authentication** on the API.
-- **Runs on the developer machine only:** no container image, deployment
+- **Runs on the developer machine only:** no image registry, deployment
   target or automatic rollback yet (Phases 2–3).
 - **Jenkins builds use the host's Docker engine.** Jenkins, and the Test
   stage for Testcontainers, have access to the Docker socket, which
@@ -271,7 +306,7 @@ Planned as the phases progress: `docker/`,
 
 - [x] **Phase 0 — Application and baseline:** API, tests, health endpoint, documented baseline
 - [x] **Phase 1 — Continuous integration:** Jenkins pipeline building and testing every change, with a secret scan and automatic builds on push
-- [ ] **Phase 2 — Containerization:** PostgreSQL storage (done), Docker image and local Compose setup
+- [ ] **Phase 2 — Containerization:** PostgreSQL storage (done), Docker image (done), local Compose setup, image built in CI
 - [ ] **Phase 3 — Automated deployment and recovery:** repeatable deploys with health checks and rollback
 - [ ] **Phase 4 — Configuration management:** Ansible playbooks for the deployment host
 - [ ] **Phase 5 — Infrastructure as code:** Terraform-provisioned environment
