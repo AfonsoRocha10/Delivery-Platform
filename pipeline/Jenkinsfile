@@ -63,7 +63,23 @@ pipeline {
         }
 
         stage('Test') {
-            agent { docker { image 'eclipse-temurin:25-jdk'; reuseNode true } }
+            agent {
+                docker {
+                    image 'eclipse-temurin:25-jdk'
+                    // Testcontainers starts PostgreSQL through the host's Docker engine: mount its socket
+                    // and add the socket's group (root:root 660), as for the Jenkins container. Only this
+                    // stage gets it. Temporary: to be replaced by a build agent with its own Docker
+                    // engine, so builds no longer control the host's Docker.
+                    args '-v /var/run/docker.sock:/var/run/docker.sock --group-add 0'
+                    reuseNode true
+                }
+            }
+            environment {
+                // The containers Testcontainers starts publish their ports on the Docker host. From inside
+                // this build container Testcontainers would use the bridge gateway (172.17.0.1), which
+                // Docker Desktop does not route to published ports; host.docker.internal does.
+                TESTCONTAINERS_HOST_OVERRIDE = 'host.docker.internal'
+            }
             steps {
                 dir('app') {
                     sh './mvnw test'
