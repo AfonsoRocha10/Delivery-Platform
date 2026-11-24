@@ -21,28 +21,27 @@ process are in place.
 defined entirely as code, runs locally in Docker with the
 `delivery-platform` job. Its pipeline scans the Git history for committed
 secrets (gitleaks), compiles and tests the application in a Java 25
-container, publishes the test results and archives the jar; a build takes
-about 43 seconds (about 24 before the database tests were added, which
-start PostgreSQL containers). Every push to
-`main` that changes the application or the pipeline starts a build
-automatically, through a GitHub webhook
-relayed to the local Jenkins (smee.io), so Jenkins is never exposed. A
-failing test or a committed secret fails the build.
+container, publishes the test results and archives the jar. Every push
+to `main` that changes the application or the pipeline starts a build
+automatically, through a GitHub webhook relayed to the local Jenkins
+(smee.io), so Jenkins is never exposed. A failing test or a committed
+secret fails the build.
 
-**Phase 2 — containerization: in progress.** First sub-step: deliveries
-are stored in PostgreSQL instead of memory. The schema is created by
-Flyway migrations, concurrent updates of the same delivery are detected
+**Phase 2 — containerization: complete.** Deliveries are stored in
+PostgreSQL instead of memory. The schema is created by Flyway
+migrations, concurrent updates of the same delivery are detected
 (`409 Conflict`), and the tests run against a real PostgreSQL started by
-Testcontainers. An optional `demo` profile fills an empty database with
-300 sample deliveries. In Jenkins, the Test stage is given access to the
-Docker engine so that Testcontainers can start PostgreSQL there too.
-The application also builds as a Docker image: multi-stage, Java 25
-runtime only, running as a non-root user, with no configuration or
-secrets inside. A Docker Compose setup starts the application and
-PostgreSQL together with one command. Next: building the image in CI.
+Testcontainers, locally and in Jenkins. An optional `demo` profile fills
+an empty database with 300 sample deliveries. The application builds as
+a Docker image (multi-stage, Java 25 runtime only, non-root user, no
+configuration or secrets inside), and a Docker Compose setup starts it
+together with PostgreSQL in one command. Every Jenkins build now also
+builds the image, tagged with the commit it came from, and scans it for
+known vulnerabilities with Trivy (reported, not yet blocking). A build
+takes about 49 seconds (24 before the database tests and the image).
 
-The container image, deployment automation and monitoring are not built
-yet; see the [roadmap](#roadmap).
+Deployment automation, infrastructure as code and monitoring are not
+built yet; see the [roadmap](#roadmap).
 
 ## Tech stack
 
@@ -57,7 +56,7 @@ yet; see the [roadmap](#roadmap).
 | Configuration management | Ansible                               | Planned |
 | Infrastructure as code   | Terraform                             | Planned |
 | Monitoring               | Prometheus + Grafana                  | Planned |
-| Image security           | Trivy                                 | Planned |
+| Image security           | Trivy (every build, non-blocking)     | In use  |
 
 ## Quick start
 
@@ -298,7 +297,7 @@ Delivery-Platform/
 │   ├── compose.yaml        Local environment: application + PostgreSQL (health checks, named volume)
 │   └── .env.example        Variables to copy into docker/.env (password, port, profile)
 ├── pipeline/
-│   ├── Jenkinsfile         CI pipeline: checkout, secret scan, compile, test (with PostgreSQL via Docker), package, archive
+│   ├── Jenkinsfile         CI pipeline: checkout, secret scan, compile, test (with PostgreSQL via Docker), package, archive, image, image scan
 │   └── jenkins/            Jenkins server as code: Dockerfile, plugins, compose, casc/, smee/ webhook relay
 ├── .gitattributes          Forces LF line endings for mvnw and shell scripts
 ├── .gitignore
@@ -325,12 +324,18 @@ Planned as the phases progress:
 - **Unexpected server errors** (for example during a database outage)
   return Spring's default error body instead of a problem-details
   response.
+- **Vulnerability findings do not fail the build yet.** The image scan
+  reports them (first scan: no critical, one high in the Java base
+  image's font library, fixed upstream); the policy for failing builds
+  comes with the security phase.
+- **No image registry:** images built by CI stay in the local Docker
+  engine for 7 days.
 
 ## Roadmap
 
 - [x] **Phase 0 — Application and baseline:** API, tests, health endpoint, documented baseline
 - [x] **Phase 1 — Continuous integration:** Jenkins pipeline building and testing every change, with a secret scan and automatic builds on push
-- [ ] **Phase 2 — Containerization:** PostgreSQL storage, Docker image and local Compose setup (done); image built in CI
+- [x] **Phase 2 — Containerization:** PostgreSQL storage, Docker image, local Compose setup, image built and scanned in CI
 - [ ] **Phase 3 — Automated deployment and recovery:** repeatable deploys with health checks and rollback
 - [ ] **Phase 4 — Configuration management:** Ansible playbooks for the deployment host
 - [ ] **Phase 5 — Infrastructure as code:** Terraform-provisioned environment
