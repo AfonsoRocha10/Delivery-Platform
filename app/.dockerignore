@@ -1,0 +1,11 @@
+# Keep the build context to what the Dockerfile copies: smaller, faster, and no local files
+# (build output, IDE settings, secrets) can end up in an image layer by accident.
+target/
+.idea/
+*.iml
+.vscode/
+*.log
+.env
+.env.*
+Dockerfile
+.dockerignore
