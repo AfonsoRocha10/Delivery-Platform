@@ -1,39 +1,20 @@
 package io.github.afonsorocha10.delivery.delivery;
 
 import java.util.List;
-import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.UnaryOperator;
 
-import org.springframework.stereotype.Repository;
+import org.springframework.data.jpa.repository.JpaRepository;
 
 /**
- * In-memory storage. Data is lost on restart; this is a documented limitation of the first version.
+ * Deliveries stored in PostgreSQL. Spring Data JPA generates the implementation at startup;
+ * save, findById and findAll are inherited from {@link JpaRepository}.
+ * Concurrent updates are guarded by the entity's {@code @Version} column, not by this repository.
  */
-@Repository
-public class DeliveryRepository {
-
-    private final Map<UUID, Delivery> deliveries = new ConcurrentHashMap<>();
-
-    public Delivery save(Delivery delivery) {
-        deliveries.put(delivery.id(), delivery);
-        return delivery;
-    }
-
-    public Optional<Delivery> findById(UUID id) {
-        return Optional.ofNullable(deliveries.get(id));
-    }
-
-    public List<Delivery> findAll() {
-        return List.copyOf(deliveries.values());
-    }
+public interface DeliveryRepository extends JpaRepository<Delivery, UUID> {
 
     /**
-     * Atomically replaces a delivery, so two concurrent status changes cannot both pass validation.
+     * All deliveries, oldest first, so listings are stable between calls.
+     * The query is derived from the method name and checked against the entity at startup.
      */
-    public Optional<Delivery> update(UUID id, UnaryOperator<Delivery> change) {
-        return Optional.ofNullable(deliveries.computeIfPresent(id, (key, current) -> change.apply(current)));
-    }
+    List<Delivery> findAllByOrderByCreatedAtAsc();
 }

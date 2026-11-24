@@ -12,19 +12,23 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.util.UUID;
 
+import io.github.afonsorocha10.delivery.TestContainersConfiguration;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 /**
- * Web-layer slice: verifies the HTTP contract (status codes, headers, error bodies).
- * Uses the real service and repository instead of mocks, because both are small and in-memory.
+ * Verifies the HTTP contract (status codes, headers, error bodies) through MockMvc.
+ * Runs the full application against a real PostgreSQL (Testcontainers) instead of mocking the
+ * service or the repository, so each request goes through the real transactions and database.
  */
-@WebMvcTest(DeliveryController.class)
-@Import({DeliveryService.class, DeliveryRepository.class})
+@SpringBootTest
+@AutoConfigureMockMvc
+@Import(TestContainersConfiguration.class)
 class DeliveryControllerTest {
 
     @Autowired
@@ -43,7 +47,9 @@ class DeliveryControllerTest {
                 .andExpect(status().isCreated())
                 .andExpect(header().string("Location", containsString("/api/deliveries/")))
                 .andExpect(jsonPath("$.id").isNotEmpty())
-                .andExpect(jsonPath("$.status").value("CREATED"));
+                .andExpect(jsonPath("$.status").value("CREATED"))
+                .andExpect(jsonPath("$.createdAt").isNotEmpty())
+                .andExpect(jsonPath("$.updatedAt").isNotEmpty());
     }
 
     @Test
@@ -62,7 +68,7 @@ class DeliveryControllerTest {
 
     @Test
     void listContainsCreatedDelivery() throws Exception {
-        // The Spring context (and its in-memory repository) is shared between tests,
+        // The database is shared between tests and rows from other tests stay in it,
         // so assert on this delivery rather than on the total count.
         Delivery delivery = service.create("Ana Silva", "Rua Augusta 1, Lisboa");
 
@@ -90,7 +96,9 @@ class DeliveryControllerTest {
                                 {"status": "PICKED_UP"}
                                 """))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("PICKED_UP"));
+                .andExpect(jsonPath("$.status").value("PICKED_UP"))
+                .andExpect(jsonPath("$.createdAt").isNotEmpty())
+                .andExpect(jsonPath("$.updatedAt").isNotEmpty());
     }
 
     @Test

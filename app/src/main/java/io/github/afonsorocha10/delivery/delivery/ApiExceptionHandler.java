@@ -3,6 +3,7 @@ package io.github.afonsorocha10.delivery.delivery;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -48,4 +49,11 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         body.setProperty("errors", errors);
         return handleExceptionInternal(ex, body, headers, status, request);
     }
+
+    @ExceptionHandler(OptimisticLockingFailureException.class)
+    ProblemDetail handleConcurrentUpdate(OptimisticLockingFailureException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT,
+                "The delivery was changed by another request; reload it and try again");
+    }
+
 }

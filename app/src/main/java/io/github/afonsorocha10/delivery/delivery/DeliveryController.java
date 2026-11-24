@@ -1,6 +1,7 @@
 package io.github.afonsorocha10.delivery.delivery;
 
 import java.net.URI;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -62,10 +63,12 @@ public class DeliveryController {
     public record UpdateStatusRequest(@NotNull DeliveryStatus status) {
     }
 
-    public record DeliveryResponse(UUID id, String recipientName, String address, DeliveryStatus status) {
+    public record DeliveryResponse(UUID id, String recipientName, String address, DeliveryStatus status,
+                                   Instant createdAt, Instant updatedAt) {
 
         static DeliveryResponse from(Delivery delivery) {
-            return new DeliveryResponse(delivery.id(), delivery.recipientName(), delivery.address(), delivery.status());
+            return new DeliveryResponse(delivery.id(), delivery.recipientName(), delivery.address(),
+                    delivery.status(), delivery.createdAt(), delivery.updatedAt());
         }
     }
 }
