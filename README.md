@@ -38,8 +38,8 @@ Testcontainers. An optional `demo` profile fills an empty database with
 Docker engine so that Testcontainers can start PostgreSQL there too.
 The application also builds as a Docker image: multi-stage, Java 25
 runtime only, running as a non-root user, with no configuration or
-secrets inside. Next: a Compose setup with the application and the
-database, and building the image in CI.
+secrets inside. A Docker Compose setup starts the application and
+PostgreSQL together with one command. Next: building the image in CI.
 
 The container image, deployment automation and monitoring are not built
 yet; see the [roadmap](#roadmap).
@@ -82,7 +82,28 @@ into `app/target/`. The tests start throwaway PostgreSQL containers
 (`postgres:18.7-alpine3.24`) through Testcontainers and remove them
 afterwards; no database setup is needed.
 
-### Run
+### Run with Docker Compose (recommended)
+
+One command starts PostgreSQL and the application, in that order, each
+with a health check. From the repository root:
+
+```bash
+cp docker/.env.example docker/.env      # then set DB_PASSWORD in docker/.env (not committed)
+docker compose -f docker/compose.yaml up -d --build --wait
+curl http://localhost:8081/actuator/health/readiness
+```
+
+- The API is on `http://localhost:8081` (change `APP_PORT` in
+  `docker/.env`); PostgreSQL is not exposed outside Docker.
+- `SPRING_PROFILES_ACTIVE=demo` in `docker/.env` loads 300 sample
+  deliveries into an empty database.
+- Data is kept in a Docker volume between restarts.
+- `docker compose -f docker/compose.yaml down` stops everything and
+  keeps the data; add `-v` to delete it.
+- The application container runs as a non-root user with a read-only
+  filesystem, no Linux capabilities and a 512 MB memory limit.
+
+### Run without Docker
 
 The application needs a PostgreSQL database. Start one in Docker,
 reachable only from this machine (choose any password; it is not stored
@@ -124,7 +145,7 @@ them.
 To stop: `Ctrl+C` for the application, then
 `docker rm -f delivery-postgres` (this also deletes the data).
 
-### Run as a container
+### Run the image without Compose
 
 Build the image (tests are not run in the image build; they run with
 `./mvnw verify` and in CI):
@@ -154,7 +175,7 @@ curl http://localhost:8080/actuator/health/readiness
 The container runs as a non-root user and shuts down gracefully on
 `docker stop`. Clean up with
 `docker rm -f delivery-app delivery-postgres && docker network rm delivery-net`.
-A Compose file that does all of this in one command is planned next.
+Docker Compose (above) does all of this in one command.
 
 ## API
 
@@ -273,6 +294,9 @@ Delivery-Platform/
 │   ├── .mvn/, mvnw, mvnw.cmd   Maven Wrapper
 │   ├── Dockerfile, .dockerignore   Application image (multi-stage, non-root)
 │   └── pom.xml
+├── docker/
+│   ├── compose.yaml        Local environment: application + PostgreSQL (health checks, named volume)
+│   └── .env.example        Variables to copy into docker/.env (password, port, profile)
 ├── pipeline/
 │   ├── Jenkinsfile         CI pipeline: checkout, secret scan, compile, test (with PostgreSQL via Docker), package, archive
 │   └── jenkins/            Jenkins server as code: Dockerfile, plugins, compose, casc/, smee/ webhook relay
@@ -282,7 +306,7 @@ Delivery-Platform/
 └── README.md
 ```
 
-Planned as the phases progress: `docker/` (Compose),
+Planned as the phases progress:
 `ansible/`, `terraform/`, `monitoring/`, `security/` and `scripts/`.
 
 ## Known limitations
@@ -306,7 +330,7 @@ Planned as the phases progress: `docker/` (Compose),
 
 - [x] **Phase 0 — Application and baseline:** API, tests, health endpoint, documented baseline
 - [x] **Phase 1 — Continuous integration:** Jenkins pipeline building and testing every change, with a secret scan and automatic builds on push
-- [ ] **Phase 2 — Containerization:** PostgreSQL storage (done), Docker image (done), local Compose setup, image built in CI
+- [ ] **Phase 2 — Containerization:** PostgreSQL storage, Docker image and local Compose setup (done); image built in CI
 - [ ] **Phase 3 — Automated deployment and recovery:** repeatable deploys with health checks and rollback
 - [ ] **Phase 4 — Configuration management:** Ansible playbooks for the deployment host
 - [ ] **Phase 5 — Infrastructure as code:** Terraform-provisioned environment
