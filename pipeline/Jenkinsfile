@@ -57,7 +57,10 @@ pipeline {
             steps {
                 dir('app') {
                     sh 'java -version && ./mvnw --version'
-                    sh './mvnw compile'
+                    // clean: the workspace (and app/target/) is reused between builds, so without it a build
+                    // could publish test reports or package files left over from a previous build of
+                    // another commit. Test and Package then reuse this fresh output.
+                    sh './mvnw clean compile'
                 }
             }
         }
