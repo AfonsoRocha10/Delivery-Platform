@@ -21,11 +21,22 @@ process are in place.
 defined entirely as code, runs locally in Docker with the
 `delivery-platform` job. Its pipeline scans the Git history for committed
 secrets (gitleaks), compiles and tests the application in a Java 25
-container, publishes the test results and archives the jar; a build takes
-about 24 seconds. Every push to `main` that changes the application or
-the pipeline starts a build automatically, through a GitHub webhook
+container, publishes the test results and archives the jar; a build took
+about 24 seconds before the database tests were added. Every push to
+`main` that changes the application or the pipeline starts a build
+automatically, through a GitHub webhook
 relayed to the local Jenkins (smee.io), so Jenkins is never exposed. A
 failing test or a committed secret fails the build.
+
+**Phase 2 — containerization: in progress.** First sub-step: deliveries
+are stored in PostgreSQL instead of memory. The schema is created by
+Flyway migrations, concurrent updates of the same delivery are detected
+(`409 Conflict`), and the tests run against a real PostgreSQL started by
+Testcontainers. An optional `demo` profile fills an empty database with
+300 sample deliveries. In Jenkins, the Test stage is given access to the
+Docker engine so that Testcontainers can start PostgreSQL there too.
+Next: the application's Docker image and a Compose setup with the
+database.
 
 The container image, deployment automation and monitoring are not built
 yet; see the [roadmap](#roadmap).
@@ -35,8 +46,9 @@ yet; see the [roadmap](#roadmap).
 | Area                     | Tool                                  | Status  |
 | ------------------------ | ------------------------------------- | ------- |
 | Application              | Java 25 (LTS), Spring Boot 4.1.2      | In use  |
+| Database                 | PostgreSQL 18, Spring Data JPA, Flyway | In use  |
 | Build                    | Maven 3.10.0 via the Maven Wrapper    | In use  |
-| Tests                    | JUnit 5, Spring Boot Test             | In use  |
+| Tests                    | JUnit 5, Spring Boot Test, Testcontainers | In use  |
 | CI/CD                    | Jenkins 2.580.2 LTS (Docker, Configuration as Code) | In use  |
 | Packaging                | Docker                                | Planned |
 | Configuration management | Ansible                               | Planned |
@@ -51,6 +63,8 @@ yet; see the [roadmap](#roadmap).
 - JDK 25. Maven does **not** need to be installed: the Maven Wrapper
   (`mvnw`) downloads the pinned version on first use.
 - Git.
+- Docker, running: the tests start PostgreSQL in a container, and the
+  application needs a PostgreSQL database.
 
 ### Build and test
 
@@ -61,28 +75,51 @@ cd Delivery-Platform/app
 ```
 
 `verify` compiles the code, runs all tests and packages the executable JAR
-into `app/target/`.
+into `app/target/`. The tests start throwaway PostgreSQL containers
+(`postgres:18.7-alpine3.24`) through Testcontainers and remove them
+afterwards; no database setup is needed.
 
 ### Run
 
+The application needs a PostgreSQL database. Start one in Docker,
+reachable only from this machine (choose any password; it is not stored
+anywhere):
+
 ```bash
-./mvnw spring-boot:run   # Windows: mvnw.cmd spring-boot:run
+export DB_PASSWORD='choose-a-local-password'
+docker run -d --name delivery-postgres \
+  -e POSTGRES_DB=delivery -e POSTGRES_USER=delivery -e POSTGRES_PASSWORD="$DB_PASSWORD" \
+  -p 127.0.0.1:5432:5432 \
+  postgres:18.7-alpine3.24
 ```
 
-Or run the packaged JAR:
+If port 5432 is already used (for example by a local PostgreSQL), publish
+another one, such as `-p 127.0.0.1:5433:5432`, and use it in the URL
+below.
+
+Then start the application. The connection is only configured through
+environment variables, so no credentials are stored in the code:
 
 ```bash
+SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/delivery \
+SPRING_DATASOURCE_USERNAME=delivery \
+SPRING_DATASOURCE_PASSWORD="$DB_PASSWORD" \
 java -jar target/delivery-service-0.0.1-SNAPSHOT.jar
 ```
 
-The API listens on port `8080`. To use another port (for example, if 8080
-is already taken), set `SERVER_PORT`; no rebuild is needed:
+On startup, Flyway creates or upgrades the schema. The API listens on
+port `8080`; to use another port (for example, if 8080 is already
+taken), also set `SERVER_PORT=8081`. No rebuild is needed for any of
+these settings. On Windows PowerShell, set each variable with
+`$env:NAME = "value"` before the command.
 
-```bash
-SERVER_PORT=8081 java -jar target/delivery-service-0.0.1-SNAPSHOT.jar
-```
+**Demo data:** add `SPRING_PROFILES_ACTIVE=demo` to load 300 realistic
+sample deliveries (all statuses, spread over the last 30 days). They are
+only loaded into an empty database, so restarting does not duplicate
+them.
 
-On Windows PowerShell: `$env:SERVER_PORT = "8081"` before the command.
+To stop: `Ctrl+C` for the application, then
+`docker rm -f delivery-postgres` (this also deletes the data).
 
 ## API
 
@@ -102,7 +139,9 @@ CREATED ──> PICKED_UP ──> IN_TRANSIT ──> DELIVERED
 ```
 
 `DELIVERED` and `CANCELLED` are final. Any other transition is rejected
-with `409 Conflict`.
+with `409 Conflict`. A status change also returns `409 Conflict` if the
+delivery was changed by another request in the meantime (optimistic
+locking): reload it and try again.
 
 ### Examples
 
@@ -118,8 +157,11 @@ curl -i -X POST http://localhost:8080/api/deliveries \
 HTTP/1.1 201
 Location: http://localhost:8080/api/deliveries/{id}
 
-{"id":"{id}","recipientName":"Ana Silva","address":"Rua das Flores 10, Porto","status":"CREATED"}
+{"id":"{id}","recipientName":"Ana Silva","address":"Rua das Flores 10, Porto","status":"CREATED","createdAt":"2026-11-24T14:25:16.768546Z","updatedAt":"2026-11-24T14:25:16.768546Z"}
 ```
+
+`createdAt` and `updatedAt` are UTC timestamps with microsecond
+precision; `updatedAt` changes on every status change.
 
 Advance its status:
 
@@ -176,7 +218,11 @@ Validation messages follow the JVM locale, so their wording may differ.
 | ---------------------------- | ---------------------------------------------- |
 | `/actuator/health`           | Overall application health                     |
 | `/actuator/health/liveness`  | Is the process alive? (restart if not)         |
-| `/actuator/health/readiness` | Can it accept traffic? (used for deployments)  |
+| `/actuator/health/readiness` | Can it accept traffic? (used for deployments). `DOWN` (503) while the database is unreachable |
+
+Liveness deliberately ignores the database: restarting the application
+does not fix a database outage. When the database comes back, readiness
+returns to `UP` by itself.
 
 Only the `health` Actuator endpoint is exposed over HTTP. The others can
 reveal internal details and stay disabled.
@@ -187,12 +233,12 @@ reveal internal details and stay disabled.
 Delivery-Platform/
 ├── app/                    Spring Boot application
 │   ├── src/main/java/      Application code (package io.github.afonsorocha10.delivery)
-│   ├── src/test/java/      Unit and web-layer tests
-│   ├── src/main/resources/ application.yaml
+│   ├── src/test/java/      Unit, web and database tests (Testcontainers)
+│   ├── src/main/resources/ application.yaml, db/migration/ (Flyway SQL migrations)
 │   ├── .mvn/, mvnw, mvnw.cmd   Maven Wrapper
 │   └── pom.xml
 ├── pipeline/
-│   ├── Jenkinsfile         CI pipeline: checkout, secret scan, compile, test, package, archive
+│   ├── Jenkinsfile         CI pipeline: checkout, secret scan, compile, test (with PostgreSQL via Docker), package, archive
 │   └── jenkins/            Jenkins server as code: Dockerfile, plugins, compose, casc/, smee/ webhook relay
 ├── .gitattributes          Forces LF line endings for mvnw and shell scripts
 ├── .gitignore
@@ -203,11 +249,28 @@ Delivery-Platform/
 Planned as the phases progress: `docker/`,
 `ansible/`, `terraform/`, `monitoring/`, `security/` and `scripts/`.
 
+## Known limitations
+
+- **No authentication** on the API.
+- **Runs on the developer machine only:** no container image, deployment
+  target or automatic rollback yet (Phases 2–3).
+- **Jenkins builds use the host's Docker engine.** Jenkins, and the Test
+  stage for Testcontainers, have access to the Docker socket, which
+  amounts to full control of that engine. Acceptable for a local,
+  single-developer Jenkins that only builds `main`; to be replaced by a
+  build agent with its own Docker engine.
+- **Slow failure during a database outage:** health checks and requests
+  wait up to 30 seconds (the connection pool's default) before reporting
+  the database as unavailable.
+- **Unexpected server errors** (for example during a database outage)
+  return Spring's default error body instead of a problem-details
+  response.
+
 ## Roadmap
 
 - [x] **Phase 0 — Application and baseline:** API, tests, health endpoint, documented baseline
 - [x] **Phase 1 — Continuous integration:** Jenkins pipeline building and testing every change, with a secret scan and automatic builds on push
-- [ ] **Phase 2 — Containerization:** Docker image and local Compose setup
+- [ ] **Phase 2 — Containerization:** PostgreSQL storage (done), Docker image and local Compose setup
 - [ ] **Phase 3 — Automated deployment and recovery:** repeatable deploys with health checks and rollback
 - [ ] **Phase 4 — Configuration management:** Ansible playbooks for the deployment host
 - [ ] **Phase 5 — Infrastructure as code:** Terraform-provisioned environment
@@ -217,9 +280,22 @@ Planned as the phases progress: `docker/`,
 
 ## Design decisions
 
-- **In-memory storage.** Keeps the first version small; data is lost on
-  restart. PostgreSQL with Flyway migrations and a demo dataset is planned
-  for the start of Phase 2.
+- **PostgreSQL with Flyway migrations.** The schema lives in versioned
+  SQL files; Hibernate only checks that it matches the code. Migrations
+  only add, never remove or rename, so a deployment can be rolled back.
+  The first version kept data in memory; the database was added at the
+  start of Phase 2, before the Docker image.
+- **Optimistic locking.** Each delivery has a version number; a change
+  based on outdated data is rejected instead of silently overwriting
+  another request's change.
+- **Database settings only from the environment.** No URL, user or
+  password in the code or the image.
+- **Tests on a real PostgreSQL** (Testcontainers), not an in-memory
+  substitute, so the migrations and the locking are tested as they run in
+  production.
+- **Demo data only on request.** Loaded by the application under the
+  `demo` profile, never by a migration, so it cannot reach a real
+  environment by accident.
 - **Maven Wrapper committed.** The developer machine, Jenkins and the
   Docker build all use the same Maven version.
 - **LF line endings enforced** for `mvnw` and shell scripts, which fail on
